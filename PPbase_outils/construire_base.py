@@ -10,8 +10,8 @@ Usage (une seule fois : pip install osmium) :
     python construire_base.py --france             # toute la France, outre-mer compris (27 regions)
     python construire_base.py --metropole          # France metropolitaine seule (22 regions)
     python construire_base.py --liste              # affiche les noms de regions
-  Options : --force (reconstruit meme si a jour)  --sans-ftp  --garder-pbf
-  Si ftp.ini existe a cote du script, les fichiers nouveaux ou modifies sont envoyes par FTP.
+  Options : --force (reconstruit meme si a jour)  --garder-pbf
+  Resultat dans le dossier sortie/ : routes-<region>.bin + version.json.
   Un extrait deja telecharge a la main (ex. sortie/pbf/rhone-alpes-261024.osm.pbf) est reutilise.
 
 Format PPB1 (little endian) :
@@ -24,14 +24,13 @@ Format PPB1 (little endian) :
 Manifeste version.json :
   {"format": 2, "genere": "...", "regions": {"<cle>": {"label","fichier","date","date_unix","taille","sha256","voies","tuiles"}}}
 """
-import sys, os, re, struct, zlib, json, hashlib, time, math, calendar, urllib.request, ftplib, getpass, configparser
+import sys, os, re, struct, zlib, json, hashlib, time, math, calendar, urllib.request
 import osmium
 
 TAILLE_TUILE = 5000          # 0.05 degre (~5.5 km)
 ECHELLE = 100000.0           # 1e-5 degre
 PAS_MAX = 1000.0             # metres : on ajoute des points sur les longs segments
 URL_GEOFABRIK = "https://download.geofabrik.de/europe/france/{cle}-latest.osm.pbf"
-URL_VERSION = "https://phb69.pages-perso.free.fr/PPbase/version.json"
 
 # Regions de France metropolitaine (decoupage Geofabrik, anciennes regions).
 REGIONS = {
@@ -161,85 +160,6 @@ def resoudre_latest(url):
         return r.geturl()
 
 
-URL_VERSION = "https://phb69.pages-perso.free.fr/PPbase/version.json"
-
-
-def lire_config_ftp(ici):
-    """ftp.ini (a cote du script) : [ftp] serveur, utilisateur, dossier [, motdepasse].
-    Le mot de passe est demande au clavier s'il n'est pas dans le fichier (recommande)."""
-    chemin = os.path.join(ici, "ftp.ini")
-    if not os.path.exists(chemin):
-        return None
-    cp = configparser.ConfigParser()
-    cp.read(chemin, encoding="utf-8")
-    if "ftp" not in cp:
-        return None
-    c = cp["ftp"]
-    return {
-        "serveur": c.get("serveur", "ftpperso.free.fr").strip(),
-        "utilisateur": c.get("utilisateur", "").strip(),
-        "port": c.getint("port", 21),
-        "dossier": c.get("dossier", "PPbase").strip(),
-        "motdepasse": c.get("motdepasse", "").strip(),
-    }
-
-
-def connecter_ftp(cfg):
-    mdp = cfg["motdepasse"] or getpass.getpass(f"Mot de passe FTP de {cfg['utilisateur']} : ")
-    try:
-        ftp = ftplib.FTP_TLS(timeout=60)
-        ftp.connect(cfg["serveur"], cfg["port"])
-        ftp.login(cfg["utilisateur"], mdp)
-        ftp.prot_p()
-        print("  connexion FTP chiffree (FTPS)")
-    except Exception as e:
-        print(f"  FTPS indisponible ({e}) : connexion FTP classique (non chiffree)")
-        ftp = ftplib.FTP(timeout=60)
-        ftp.connect(cfg["serveur"], cfg["port"])
-        ftp.login(cfg["utilisateur"], mdp)
-    return ftp
-
-
-def envoyer_ftp(sortie, cfg, manifeste, a_envoyer):
-    """Envoie les .bin listes (a_envoyer = {cle: sha}) puis version.json (en dernier), puis verifie."""
-    print(f"Envoi FTP vers {cfg['serveur']}/{cfg['dossier']} ...")
-    ftp = connecter_ftp(cfg)
-    try:
-        for part in [p for p in cfg["dossier"].split("/") if p]:
-            try:
-                ftp.cwd(part)
-            except ftplib.error_perm:
-                ftp.mkd(part)
-                ftp.cwd(part)
-        noms = [manifeste["regions"][k]["fichier"] for k in a_envoyer] + ["version.json"]
-        for nom in noms:
-            chemin = os.path.join(sortie, nom)
-            taille = os.path.getsize(chemin)
-            print(f"  {nom} ({taille/1e6:.1f} Mo)...")
-            with open(chemin, "rb") as f:
-                ftp.storbinary(f"STOR {nom}", f)
-            distant = ftp.size(nom)
-            if distant is not None and distant != taille:
-                raise RuntimeError(f"{nom} : taille distante {distant} differente de {taille}")
-    finally:
-        try:
-            ftp.quit()
-        except Exception:
-            pass
-    try:
-        req = urllib.request.Request(URL_VERSION + "?t=" + str(int(time.time())), headers={"User-Agent": "PPbase-builder/2.0"})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            vu = json.loads(r.read().decode("utf-8"))
-        ok = all(vu.get("regions", {}).get(k, {}).get("sha256") == manifeste["regions"][k]["sha256"] for k in a_envoyer)
-        print("  Verification OK : le site sert bien les nouvelles versions." if ok else
-              "  ATTENTION : le site sert encore d'anciennes versions (cache ?). Reessaie dans quelques minutes.")
-    except Exception as e:
-        print(f"  Verification HTTPS impossible ({e}) : verifie manuellement {URL_VERSION}")
-    marque = os.path.join(sortie, "televerse.json")
-    deja = json.load(open(marque, encoding="utf-8")) if os.path.exists(marque) else {}
-    deja.update(a_envoyer)
-    json.dump(deja, open(marque, "w", encoding="utf-8"))
-    print("Envoi termine.")
 
 
 def telecharger(url, dest):
@@ -343,7 +263,6 @@ def main():
     os.makedirs(dossier_pbf, exist_ok=True)
     forcer = "--force" in args
     garder = "--garder-pbf" in args
-    cfg_ftp = None if "--sans-ftp" in args else lire_config_ftp(ici)
 
     regions = choisir_regions(args)
     print("Regions retenues : " + ", ".join(REGIONS[r] for r in regions))
@@ -406,17 +325,6 @@ def main():
     json.dump(manifeste, open(chemin_manifeste, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
     total = sum(v["taille"] for v in manifeste["regions"].values())
     print(f"Bases disponibles : {len(manifeste['regions'])} region(s), {total/1e6:.1f} Mo au total")
-
-    if cfg_ftp:
-        marque = os.path.join(sortie, "televerse.json")
-        deja = json.load(open(marque, encoding="utf-8")) if os.path.exists(marque) else {}
-        a_envoyer = {k: v["sha256"] for k, v in manifeste["regions"].items() if deja.get(k) != v["sha256"]}
-        if a_envoyer or not deja:
-            envoyer_ftp(sortie, cfg_ftp, manifeste, a_envoyer)
-        else:
-            print("Tout est deja envoye sur le site : rien a faire.")
-    else:
-        print("Pas d'envoi FTP (ftp.ini absent ou --sans-ftp) : depose les routes-*.bin puis version.json dans PPbase/ sur ton site.")
 
 
 if __name__ == "__main__":
