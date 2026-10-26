@@ -1,0 +1,30 @@
+BASES ROUTIERES PPbase (v2) - mode d'emploi
+===========================================
+1) Une seule fois, sur le PC (Python 3 installe) :
+       pip install osmium
+2) Fabriquer les bases (un fichier par region) :
+       python construire_base.py                     -> menu : tu choisis tes regions
+       python construire_base.py --regions rhone-alpes bourgogne
+       python construire_base.py --france            -> toute la France, outre-mer compris (27 regions)
+       python construire_base.py --metropole         -> France metropolitaine seule (22 regions)
+       python construire_base.py --liste             -> noms des regions
+   Les regions deja a jour (meme date de donnees OSM) ne sont pas refaites.
+   --force reconstruit quand meme ; --garder-pbf conserve les extraits telecharges.
+   Un extrait telecharge a la main peut etre depose dans sortie\pbf\ (ex. rhone-alpes-261024.osm.pbf).
+3) Envoi automatique (optionnel) : copie ftp.ini.exemple en ftp.ini, complete-le
+   (serveur ftpperso.free.fr, ton identifiant). Le mot de passe est demande au clavier.
+   Seuls les fichiers nouveaux ou modifies sont envoyes, puis version.json en dernier.
+   Option --sans-ftp pour desactiver l'envoi.
+   Sans envoi automatique : deposer les routes-*.bin puis version.json dans
+       https://phb69.pages-perso.free.fr/PPbase/
+4) Sur le telephone : menu "Base routiere (regions)" -> cocher les regions voulues ->
+   "Enregistrer et telecharger". L'appli met ensuite a jour ses regions toute seule en Wi-Fi
+   (par comparaison de somme de controle) et supprime les regions decochees.
+Refaire l'etape 2 environ une fois par mois.
+
+LICENCE (important si tu diffuses les fichiers)
+Les bases derivent d'OpenStreetMap (licence ODbL 1.0). Pour un usage personnel, rien a faire.
+Si les fichiers routes-*.bin / version.json sont rendus publics ou partages, il faut :
+  - conserver la mention "© contributeurs OpenStreetMap" (champ "attribution" de version.json et page A propos) ;
+  - indiquer la licence ODbL et son lien ;
+  - mettre la base derivee a disposition sous la meme licence ODbL.
