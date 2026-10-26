@@ -1,1 +1,38 @@
+name: Construire les bases routieres
 
+on:
+  schedule:
+    - cron: "17 3 1 * *"      # le 1er de chaque mois a 03h17 UTC
+  workflow_dispatch:           # lancement manuel (bouton "Run workflow")
+
+permissions:
+  contents: write              # necessaire pour publier la release
+
+jobs:
+  construire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer osmium
+        run: pip install osmium
+
+      - name: Construire les 27 regions
+        working-directory: PPbase_outils
+        run: python construire_base.py --france --sans-ftp --force
+
+      - name: Publier (release "bases")
+        working-directory: PPbase_outils/sortie
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view bases >/dev/null 2>&1 || gh release create bases \
+            --title "Bases routieres" \
+            --notes "Bases routieres derivees d'OpenStreetMap (c) contributeurs OpenStreetMap, licence ODbL 1.0. Extraits Geofabrik."
+          gh release upload bases routes-*.bin --clobber
+          gh release upload bases version.json --clobber
