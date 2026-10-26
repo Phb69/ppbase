@@ -15,7 +15,6 @@ BASES ROUTIERES PPbase (v2) - mode d'emploi
    GitHub Actions (.github/workflows/construire-bases.yml), dans la release "bases" du depot :
        https://github.com/Phb69/ppbase/releases/download/bases/
    Lancement manuel : onglet Actions -> "Construire les bases routieres" -> Run workflow.
-   (Ancien mode, optionnel : envoi FTP vers Free avec ftp.ini ; option --sans-ftp pour le desactiver.)
 4) Sur le telephone : menu "Base routiere (regions)" -> cocher les regions voulues ->
    "Enregistrer et telecharger". L'appli met ensuite a jour ses regions toute seule en Wi-Fi
    (par comparaison de somme de controle) et supprime les regions decochees.
