@@ -24,7 +24,7 @@ jobs:
 
       - name: Construire les 27 regions
         working-directory: PPbase_outils
-        run: python construire_base.py --france --sans-ftp --force
+        run: python construire_base.py --france --force
 
       - name: Publier (release "bases")
         working-directory: PPbase_outils/sortie
