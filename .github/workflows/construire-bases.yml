@@ -2,7 +2,7 @@ name: Construire les bases routieres
 
 on:
   schedule:
-    - cron: "17 3 1 * *"      # le 1er de chaque mois a 03h17 UTC
+    - cron: "17 3 * * 1"      # Tous  les lundis a 03h17 UTC
   workflow_dispatch:           # lancement manuel (bouton "Run workflow")
 
 permissions:
